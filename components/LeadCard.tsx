@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import type { Lead } from '../types';
 import { AttemptResult, FinalResult } from '../types';
@@ -5,17 +6,19 @@ import { CheckIcon, XMarkIcon, VoicemailIcon, PauseIcon, StarIcon, PhoneIcon, Wh
 
 interface LeadCardProps {
   lead: Lead;
+  isSelected: boolean;
   onUpdate: (id: string, updates: Partial<Lead>) => void;
   onOpenWhatsApp: (lead: Lead) => void;
+  onToggleSelect: (id: string) => void;
 }
 
 const getStatusStyles = (lead: Lead): { bg: string; text: string; label: string; border: string; } => {
   const base = { bg: 'bg-[var(--bg-secondary)]', text: 'text-[var(--text-secondary)]', border: 'border-[var(--border-primary)]', label: '' };
   if (lead.locked) {
-    if (lead.result === FinalResult.Interested) return { ...base, bg: 'bg-[var(--success)]/10', text: 'text-[var(--success-text)]', border: 'border-[var(--success-text)]/30', label: 'Interessado' };
-    if (lead.result === FinalResult.Refused) return { ...base, bg: 'bg-[var(--danger)]/10', text: 'text-[var(--danger-text)]', border: 'border-[var(--danger-text)]/30', label: 'Recusado' };
+    if (lead.result === FinalResult.Interested) return { ...base, bg: 'bg-[var(--success)]/10', text: 'text-[var(--success)]', border: 'border-[var(--success)]/30', label: 'Interessado' };
+    if (lead.result === FinalResult.Refused) return { ...base, bg: 'bg-[var(--danger)]/10', text: 'text-[var(--danger)]', border: 'border-[var(--danger)]/30', label: 'Recusado' };
   }
-  if (lead.onHold) return { ...base, bg: 'bg-[var(--warning)]/10', text: 'text-[var(--warning-text)]', border: 'border-[var(--warning-text)]/30', label: 'Em Aguardo' };
+  if (lead.onHold) return { ...base, bg: 'bg-[var(--warning)]/10', text: 'text-[var(--warning)]', border: 'border-[var(--warning)]/30', label: 'Em Aguardo' };
   if (lead.attemptsResults.every(r => r === AttemptResult.Voicemail)) return { ...base, bg: 'bg-[var(--text-tertiary)]/10', text: 'text-[var(--text-tertiary)]', border: 'border-[var(--text-tertiary)]/30', label: 'Voicemail' };
   return base;
 };
@@ -55,7 +58,8 @@ const AttemptButton = ({ onClick, disabled, isVoicemail, isActive, children }: {
     }
   }
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
     if (buttonRef.current && !disabled && !isActive) {
       createConfetti(buttonRef.current);
     }
@@ -79,7 +83,7 @@ const AttemptButton = ({ onClick, disabled, isVoicemail, isActive, children }: {
   );
 };
 
-export const LeadCard: React.FC<LeadCardProps> = ({ lead, onUpdate, onOpenWhatsApp }) => {
+export const LeadCard: React.FC<LeadCardProps> = ({ lead, isSelected, onUpdate, onOpenWhatsApp, onToggleSelect }) => {
   const status = getStatusStyles(lead);
 
   const handleAttempt = (attemptIndex: 0 | 1 | 2) => {
@@ -104,7 +108,8 @@ export const LeadCard: React.FC<LeadCardProps> = ({ lead, onUpdate, onOpenWhatsA
     }
   };
 
-  const handleTogglePersistent = () => {
+  const handleTogglePersistent = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
     onUpdate(lead.id, { favorite: !lead.favorite });
   };
 
@@ -121,7 +126,19 @@ export const LeadCard: React.FC<LeadCardProps> = ({ lead, onUpdate, onOpenWhatsA
   const initials = (lead.name || '--').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <div className={`relative rounded-lg p-4 border transition-all duration-300 hover:border-[var(--accent)] hover:shadow-2xl hover:shadow-[var(--shadow-color-light)] ${status.bg} ${status.border} animate-card-entry hover:-translate-y-1 hover:scale-[1.02]`}>
+    <div 
+      onClick={() => onToggleSelect(lead.id)}
+      className={`cursor-pointer relative rounded-lg p-4 border transition-all duration-300 hover:border-[var(--accent)] hover:shadow-2xl hover:shadow-[var(--shadow-color-light)] ${status.bg} ${isSelected ? 'border-[var(--accent)] shadow-2xl shadow-[var(--shadow-color-light)]' : status.border} animate-card-entry hover:-translate-y-1 hover:scale-[1.02]`}
+    >
+      <div className="absolute top-3 left-3 z-10">
+        <input 
+          type="checkbox" 
+          checked={isSelected}
+          onChange={() => onToggleSelect(lead.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="h-5 w-5 rounded bg-[var(--bg-primary)] border-[var(--border-secondary)] text-[var(--accent)] focus:ring-[var(--accent)]"
+        />
+      </div>
       {status.label && <div className={`absolute top-2 right-2 text-xs font-bold px-2 py-1 rounded-full ${status.bg} ${status.text}`}>{status.label}</div>}
       
       <div className="flex items-start gap-4">
@@ -149,17 +166,17 @@ export const LeadCard: React.FC<LeadCardProps> = ({ lead, onUpdate, onOpenWhatsA
           ))}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
           <a href={lead.tel} className="p-2 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--success)] text-[var(--text-secondary)] hover:text-white transition-colors"><PhoneIcon className="w-5 h-5" /></a>
           <button onClick={() => onOpenWhatsApp(lead)} className="p-2 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--success)] text-[var(--text-secondary)] hover:text-white transition-colors"><WhatsAppIcon /></button>
-          <button onClick={handleTogglePersistent} className={`p-2 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--warning)] ${lead.favorite ? 'text-[var(--warning-text)]' : 'text-[var(--text-secondary)]'} hover:text-white transition-colors`}>
+          <button onClick={handleTogglePersistent} className={`p-2 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--warning)] ${lead.favorite ? 'text-[var(--warning)]' : 'text-[var(--text-secondary)]'} hover:text-white transition-colors`}>
             <StarIcon solid={lead.favorite} className="w-5 h-5" />
           </button>
         </div>
       </div>
 
       {!lead.locked && !lead.onHold && (
-        <div className="mt-4 pt-4 border-t border-[var(--border-primary)] flex flex-wrap gap-2 justify-end">
+        <div className="mt-4 pt-4 border-t border-[var(--border-primary)] flex flex-wrap gap-2 justify-end" onClick={e => e.stopPropagation()}>
           <button onClick={() => handleResult(AttemptResult.Voicemail)} disabled={lead.currentAttempt === 0} className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
             <VoicemailIcon className="w-4 h-4" /> Voicemail
           </button>
@@ -175,7 +192,7 @@ export const LeadCard: React.FC<LeadCardProps> = ({ lead, onUpdate, onOpenWhatsA
         </div>
       )}
        {lead.onHold && (
-         <div className="mt-4 pt-4 border-t border-[var(--border-primary)] flex justify-end">
+         <div className="mt-4 pt-4 border-t border-[var(--border-primary)] flex justify-end" onClick={e => e.stopPropagation()}>
             <button onClick={handleToggleOnHold} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text)] transition-colors">
                 <PlayIcon className="w-5 h-5" /> Retomar
             </button>

@@ -1,13 +1,19 @@
+
 import React, { useState, useEffect } from 'react';
 
 interface ToastProps {
   message: string;
   duration?: number;
   onDismiss: () => void;
+  action?: {
+    label: string;
+    onAction: () => void;
+  };
 }
 
-export const Toast: React.FC<ToastProps> = ({ message, duration = 2000, onDismiss }) => {
+export const Toast: React.FC<ToastProps> = ({ message, duration = 5000, onDismiss, action }) => {
   useEffect(() => {
+    if (!message) return;
     const timer = setTimeout(() => {
       onDismiss();
     }, duration);
@@ -19,12 +25,28 @@ export const Toast: React.FC<ToastProps> = ({ message, duration = 2000, onDismis
 
   if (!message) return null;
 
+  const handleActionClick = () => {
+    if (action) {
+      action.onAction();
+      onDismiss();
+    }
+  };
+
   return (
-    <div className="fixed bottom-5 right-5 bg-[var(--accent)] text-[var(--accent-text)] py-2 px-4 rounded-lg shadow-lg animate-fade-in-up z-50">
-      {message}
+    <div className="fixed bottom-5 right-5 bg-[var(--accent)] text-[var(--accent-text)] py-2 px-4 rounded-lg shadow-lg flex items-center gap-4 animate-fade-in-up z-50">
+      <span>{message}</span>
+      {action && (
+        <button
+          onClick={handleActionClick}
+          className="font-bold uppercase text-sm bg-[var(--accent-text)]/10 px-2 py-0.5 rounded hover:bg-[var(--accent-text)]/20"
+        >
+          {action.label}
+        </button>
+      )}
     </div>
   );
 };
+
 
 // Add keyframes for animation in a style tag if not using a CSS file
 const style = document.createElement('style');

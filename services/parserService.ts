@@ -1,4 +1,3 @@
-
 import type { Lead } from '../types';
 
 interface ParseOptions {
@@ -97,19 +96,19 @@ function normalizeParsed(p: ParsedLine, opts: ParseOptions): Lead | null {
     lead.ddd = p.ddd;
     lead.local = p.local;
     const RJs = ['21', '22', '24'];
+    const isRJ = RJs.includes(p.ddd!);
     const fullNumber = `${p.ddd}${p.local}`;
 
-    if (RJs.includes(p.ddd!) && hideRJ) {
-      lead.display = p.local!;
+    lead.display = (isRJ && hideRJ) ? p.local! : fullNumber;
+    
+    let callDigits;
+    if (isRJ && hideRJ) {
+      callDigits = p.local!;
     } else {
-      lead.display = fullNumber;
+      callDigits = operatorPrefix ? `0${operatorPrefix}${fullNumber}` : fullNumber;
     }
-
-    if (operatorPrefix && !RJs.includes(p.ddd!)) {
-      lead.tel = `tel:${operatorPrefix}${fullNumber}`;
-    } else {
-      lead.tel = `tel:${fullNumber}`;
-    }
+    lead.tel = `tel:${callDigits}`;
+    
     lead.wa = `https://wa.me/55${fullNumber}`;
   }
 

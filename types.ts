@@ -21,10 +21,12 @@ export interface Lead {
   onHold: boolean;
   createdAt: number;
   priority: number;
+  overdue?: boolean;
 }
 
 export interface PersistentLead extends Omit<Lead, 'id' | 'favorite'> {
   // The 'wa' link is used as the unique key for persistent leads.
+  noteHistory?: { timestamp: number; text: string }[];
 }
 
 export enum AttemptResult {

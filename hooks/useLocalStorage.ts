@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 
 function getValue<T,>(key: string, initialValue: T | (() => T)): T {
@@ -30,4 +29,20 @@ export function useLocalStorage<T,>(key: string, initialValue: T | (() => T)): [
   }, [key, value]);
 
   return [value, setValue];
+}
+
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 }

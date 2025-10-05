@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useLocalStorage } from './hooks/useLocalStorage';
+import { useLocalStorage, useDebounce } from './hooks/useLocalStorage';
 import { importFromText } from './services/parserService';
 import type { Lead, PersistentLead, SaveSlot, TabKey } from './types';
 import { FinalResult, AttemptResult } from './types';
@@ -7,6 +8,7 @@ import { LeadCard } from './components/LeadCard';
 import { PersistentLeadCard } from './components/PersistentLeadCard';
 import { Modal } from './components/Modal';
 import { Toast } from './components/Toast';
+import { BulkActionBar } from './components/BulkActionBar';
 import { BellIcon, CheckIcon } from './components/icons';
 
 const SAMPLE_DATA = `Maria Risana,(92)91612115
@@ -42,6 +44,14 @@ const THEMES = [
 
 type ActionStatus = 'idle' | 'success' | 'error';
 
+interface ToastConfig {
+  message: string;
+  action?: {
+    label: string;
+    onAction: () => void;
+  };
+}
+
 const ActionButton: React.FC<{
     onClick: () => void;
     status: ActionStatus;
@@ -63,16 +73,20 @@ const ActionButton: React.FC<{
 
 
 export default function App() {
-  const [leads, setLeads] = useLocalStorage<Lead[]>('leads_v3', []);
-  const [persistentLeads, setPersistentLeads] = useLocalStorage<Record<string, PersistentLead>>('persistentLeads_v3', {});
-  const [saves, setSaves] = useLocalStorage<Record<string, SaveSlot>>('saves_v3', {});
+  const [leads, setLeads] = useLocalStorage<Lead[]>('leads_v4', []);
+  const [persistentLeads, setPersistentLeads] = useLocalStorage<Record<string, PersistentLead>>('persistentLeads_v4', {});
+  const [saves, setSaves] = useLocalStorage<Record<string, SaveSlot>>('saves_v4', {});
 
   const [pasteContent, setPasteContent] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [selectedSave, setSelectedSave] = useState('');
+  const [selectedIds, setSelectedIds] = useState(new Set<string>());
   
-  const [toastMessage, setToastMessage] = useState('');
+  const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
+  const undoStateRef = useRef<{ leads: Lead[], persistentLeads: Record<string, PersistentLead> } | null>(null);
+
 
   // Save/Load UI State
   const [isSaving, setIsSaving] = useState(false);
@@ -80,29 +94,61 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<ActionStatus>('idle');
   const [loadStatus, setLoadStatus] = useState<ActionStatus>('idle');
   const [deleteStatus, setDeleteStatus] = useState<ActionStatus>('idle');
-  // FIX: Add `confirmText` to the modal state type to allow for custom confirmation button text.
   const [modalState, setModalState] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; confirmText?: string; }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
 
   // Settings
-  const [theme, setTheme] = useLocalStorage('settings_theme_v3', 'moonlight');
+  const [theme, setTheme] = useLocalStorage('settings_theme_v4', 'moonlight');
   const [appendMode, setAppendMode] = useState(false);
-  const [operatorPrefix, setOperatorPrefix] = useLocalStorage('settings_operatorPrefix', '');
-  const [hideRJ, setHideRJ] = useLocalStorage('settings_hideRJ', false);
-  const [defaultWaMessage, setDefaultWaMessage] = useLocalStorage('settings_waMessage', 'Olá, {nome}! Tudo bem?');
-  const [persistentOrder, setPersistentOrder] = useLocalStorage<'createdAt' | 'priority' | 'scheduleISO' | 'name'>('settings_persistentOrder', 'createdAt');
+  const [operatorPrefix, setOperatorPrefix] = useLocalStorage('settings_operatorPrefix_v4', '');
+  const [hideRJ, setHideRJ] = useLocalStorage('settings_hideRJ_v4', false);
+  const [defaultWaMessage, setDefaultWaMessage] = useLocalStorage('settings_waMessage_v4', 'Olá, {nome}! Tudo bem?');
+  const [persistentOrder, setPersistentOrder] = useLocalStorage<'createdAt' | 'priority' | 'scheduleISO' | 'name'>('settings_persistentOrder_v4', 'createdAt');
   
   // Notifications
   const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
   const notificationTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
+  const showToast = (message: string, action?: ToastConfig['action']) => {
+    setToastConfig({ message, action });
   };
   
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Automatic Overdue Lead Processing
+  useEffect(() => {
+    const processOverdueLeads = () => {
+      const now = Date.now();
+      const updates: Record<string, Partial<PersistentLead>> = {};
+      Object.values(persistentLeads).forEach(lead => {
+        if (lead.scheduleISO && !lead.overdue && new Date(lead.scheduleISO).getTime() < now) {
+          updates[lead.wa] = {
+            overdue: true,
+            note: `${lead.note || ''}\n[AGENDAMENTO ATRASADO: ${new Date(lead.scheduleISO).toLocaleString()}]`.trim(),
+            scheduleISO: '',
+          };
+        }
+      });
+
+      if (Object.keys(updates).length > 0) {
+        setPersistentLeads(prev => {
+          const newLeads = { ...prev };
+          for (const wa in updates) {
+            newLeads[wa] = { ...newLeads[wa], ...updates[wa] };
+          }
+          return newLeads;
+        });
+        showToast(`${Object.keys(updates).length} lead(s) marcado(s) como atrasado(s).`);
+      }
+    };
+
+    const intervalId = setInterval(processOverdueLeads, 60 * 1000); // Check every minute
+    processOverdueLeads(); // Check on mount
+
+    return () => clearInterval(intervalId);
+  }, [persistentLeads, setPersistentLeads]);
 
   useEffect(() => {
     const initializeSampleData = async () => {
@@ -127,7 +173,6 @@ export default function App() {
         const now = Date.now();
         const delay = scheduledTime - now;
         
-        // Clear any existing timeout for this lead
         const existingTimeout = notificationTimeouts.current.get(lead.wa);
         if (existingTimeout) {
             clearTimeout(existingTimeout);
@@ -175,17 +220,15 @@ export default function App() {
     const isRJ = RJs.includes(newLead.ddd);
     const fullNumber = `${newLead.ddd}${newLead.local}`;
 
+    newLead.display = (isRJ && hideRJ) ? newLead.local : fullNumber;
+    
+    let callDigits;
     if (isRJ && hideRJ) {
-        newLead.display = newLead.local;
-        newLead.tel = `tel:${newLead.local}`;
+      callDigits = newLead.local;
     } else {
-        newLead.display = fullNumber;
-        if (operatorPrefix && !isRJ) {
-            newLead.tel = `tel:0${operatorPrefix}${fullNumber}`;
-        } else {
-            newLead.tel = `tel:${fullNumber}`;
-        }
+      callDigits = operatorPrefix ? `0${operatorPrefix}${fullNumber}` : fullNumber;
     }
+    newLead.tel = `tel:${callDigits}`;
 
     return newLead;
   }, [hideRJ, operatorPrefix]);
@@ -204,16 +247,30 @@ export default function App() {
       return;
     }
     const newLeads = await importFromText(pasteContent, { hideRJ, operatorPrefix });
+    const allCurrentLeads = appendMode ? leads : [];
+    const waCounts: Record<string, number> = allCurrentLeads.reduce((acc, lead) => {
+        acc[lead.wa] = (acc[lead.wa] || 0) + 1;
+        return acc;
+    }, {});
     
-    const existingWAs = new Set([...leads.map(l => l.wa), ...Object.keys(persistentLeads)]);
-    const uniqueNewLeads = newLeads.filter(l => !existingWAs.has(l.wa));
-    
+    const roman = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+
+    const processedLeads = newLeads.map(lead => {
+        const key = lead.wa;
+        waCounts[key] = (waCounts[key] || 0) + 1;
+        if (waCounts[key] > 1) {
+            const suffix = roman[waCounts[key]] ? ` ${roman[waCounts[key]]}` : ` ${waCounts[key]}`;
+            return { ...lead, name: lead.name + suffix };
+        }
+        return lead;
+    });
+
     if (appendMode) {
-      setLeads(prev => [...prev, ...uniqueNewLeads]);
+      setLeads(prev => [...prev, ...processedLeads]);
     } else {
-      setLeads(uniqueNewLeads);
+      setLeads(processedLeads);
     }
-    showToast(`${uniqueNewLeads.length} novos leads importados.`);
+    showToast(`${processedLeads.length} leads importados.`);
     setPasteContent('');
   };
   
@@ -258,14 +315,27 @@ export default function App() {
   }, [setPersistentLeads]);
 
   const handlePersistentLeadRemove = useCallback((wa: string) => {
+      undoStateRef.current = { leads, persistentLeads };
+      const leadName = persistentLeads[wa]?.name || 'Lead';
+
       setPersistentLeads(prev => {
           const newPersistent = {...prev};
           delete newPersistent[wa];
           return newPersistent;
       });
       setLeads(prevLeads => prevLeads.map(l => l.wa === wa ? {...l, favorite: false} : l));
-      showToast('Lead removido de Persistent.');
-  }, [setLeads, setPersistentLeads]);
+      
+      showToast(`${leadName} removido de Persistent.`, {
+        label: 'Desfazer',
+        onAction: () => {
+          if (undoStateRef.current) {
+            setLeads(undoStateRef.current.leads);
+            setPersistentLeads(undoStateRef.current.persistentLeads);
+            showToast('Ação desfeita.');
+          }
+        },
+      });
+  }, [leads, persistentLeads, setLeads, setPersistentLeads]);
   
   const handleOpenWhatsApp = (lead: Lead | PersistentLead) => {
     const message = prompt('Mensagem para WhatsApp:', defaultWaMessage.replace('{nome}', lead.name));
@@ -371,10 +441,41 @@ export default function App() {
     showToast('Exportação gerada.');
   };
 
+  const handleExportXLSX = () => {
+    // @ts-ignore
+    if (typeof XLSX === 'undefined' || typeof saveAs === 'undefined') {
+        showToast("A biblioteca de exportação (SheetJS) não foi carregada.");
+        return;
+    }
+
+    const dataToExport = computedLeads;
+    const worksheetData = [
+        ['Nome', 'Número', 'Caixa 1', 'Caixa 2', 'Caixa 3'],
+        ...dataToExport.map(lead => [
+            lead.name,
+            lead.display,
+            '', '', '',
+        ])
+    ];
+    
+    // @ts-ignore
+    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+    // @ts-ignore
+    const wb = XLSX.utils.book_new();
+    // @ts-ignore
+    XLSX.utils.book_append_sheet(wb, ws, 'Leads para Impressão');
+    
+    // @ts-ignore
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    // @ts-ignore
+    saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'leads_para_impressao.xlsx');
+    showToast('Exportação XLSX gerada.');
+  };
+
   const filteredLeads = useMemo(() => {
     let list = computedLeads.filter(l => !l.favorite);
 
-    const lowerSearch = searchTerm.toLowerCase();
+    const lowerSearch = debouncedSearchTerm.toLowerCase();
     if (lowerSearch) {
         list = list.filter(l => 
             l.name.toLowerCase().includes(lowerSearch) || 
@@ -395,16 +496,16 @@ export default function App() {
       case 'onHold':
         return list.filter(l => l.onHold);
       case 'international':
-        return computedLeads.filter(l => l.international); // show all international, even favorites
+        return computedLeads.filter(l => l.international);
       default:
         return list;
     }
-  }, [computedLeads, activeTab, searchTerm]);
+  }, [computedLeads, activeTab, debouncedSearchTerm]);
 
   const sortedPersistentLeads = useMemo(() => {
     let list = computedPersistentLeads;
     
-    const lowerSearch = searchTerm.toLowerCase();
+    const lowerSearch = debouncedSearchTerm.toLowerCase();
     if (lowerSearch) {
         list = list.filter(l => 
             l.name.toLowerCase().includes(lowerSearch) || 
@@ -414,17 +515,16 @@ export default function App() {
     }
 
     if (activeTab === 'overdue') {
-        list = list.filter(l => l.scheduleISO && new Date(l.scheduleISO).getTime() < Date.now());
+        list = list.filter(l => l.overdue);
     }
     
     list.sort((a, b) => {
         switch (persistentOrder) {
             case 'name': return a.name.localeCompare(b.name);
             case 'priority': 
-                const priorityA = a.scheduleISO && new Date(a.scheduleISO).getTime() < Date.now() ? 0 : (a.priority || 3);
-                const priorityB = b.scheduleISO && new Date(b.scheduleISO).getTime() < Date.now() ? 0 : (b.priority || 3);
+                const priorityA = a.overdue ? 0 : (a.priority || 3);
+                const priorityB = b.overdue ? 0 : (b.priority || 3);
                 if (priorityA !== priorityB) return priorityA - priorityB;
-                // Fallback sort for same priority
                 const dateA = a.scheduleISO ? new Date(a.scheduleISO).getTime() : Infinity;
                 const dateB = b.scheduleISO ? new Date(b.scheduleISO).getTime() : Infinity;
                 return dateA - dateB;
@@ -438,25 +538,118 @@ export default function App() {
     });
 
     return list;
-  }, [computedPersistentLeads, searchTerm, persistentOrder, activeTab]);
+  }, [computedPersistentLeads, debouncedSearchTerm, persistentOrder, activeTab]);
 
-  const summaryCounts = useMemo(() => ({
-    all: computedLeads.filter(l => !l.locked && !l.onHold && !l.favorite && !l.attemptsResults.every(r => r === AttemptResult.Voicemail)).length,
-    interested: computedLeads.filter(l => l.result === FinalResult.Interested).length,
-    refused: computedLeads.filter(l => l.result === FinalResult.Refused).length,
-    onHold: computedLeads.filter(l => l.onHold).length,
-    persistent: Object.keys(persistentLeads).length
-  }), [computedLeads, persistentLeads]);
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        return newSet;
+    });
+  }, []);
+
+  const handleSelectAllVisible = () => {
+    const currentVisibleIds = filteredLeads.map(l => l.id);
+    const allSelected = currentVisibleIds.length > 0 && currentVisibleIds.every(id => selectedIds.has(id));
+
+    if (allSelected) {
+        setSelectedIds(new Set());
+    } else {
+        setSelectedIds(new Set(currentVisibleIds));
+    }
+  };
+
+  const performBulkAction = (updateFn: (lead: Lead) => Partial<Lead>, toastMessage: string) => {
+    undoStateRef.current = { leads, persistentLeads };
+    
+    setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, ...updateFn(l) } : l));
+    
+    showToast(`${selectedIds.size} lead(s): ${toastMessage}`, {
+        label: 'Desfazer',
+        onAction: () => {
+            if (undoStateRef.current) {
+                setLeads(undoStateRef.current.leads);
+                showToast('Ação desfeita.');
+            }
+        }
+    });
+    setSelectedIds(new Set());
+  };
+  
+  const handleBulkDelete = () => {
+    undoStateRef.current = { leads, persistentLeads };
+    setLeads(prev => prev.filter(l => !selectedIds.has(l.id)));
+    showToast(`${selectedIds.size} lead(s) deletados.`, {
+        label: 'Desfazer',
+        onAction: () => {
+            if (undoStateRef.current) {
+                setLeads(undoStateRef.current.leads);
+                showToast('Deleção desfeita.');
+            }
+        }
+    });
+    setSelectedIds(new Set());
+  }
+
+  const handleBulkToggleFavorite = (favorite: boolean) => {
+      undoStateRef.current = { leads, persistentLeads };
+      const leadMap = new Map(leads.map(l => [l.id, l]));
+      const newPersistent = { ...persistentLeads };
+
+      selectedIds.forEach(id => {
+        const lead = leadMap.get(id);
+        if(lead) {
+            if (favorite && !lead.favorite) {
+                const { id: leadId, favorite: fav, ...persistentData } = lead;
+                newPersistent[persistentData.wa] = persistentData;
+            } else if (!favorite && lead.favorite) {
+                delete newPersistent[lead.wa];
+            }
+        }
+      });
+      
+      setPersistentLeads(newPersistent);
+      setLeads(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, favorite } : l));
+      
+      showToast(`${selectedIds.size} lead(s) ${favorite ? 'adicionados a' : 'removidos de'} Persistent.`, {
+          label: 'Desfazer',
+          onAction: () => {
+              if (undoStateRef.current) {
+                  setLeads(undoStateRef.current.leads);
+                  setPersistentLeads(undoStateRef.current.persistentLeads);
+                  showToast('Ação desfeita.');
+              }
+          }
+      });
+      setSelectedIds(new Set());
+  };
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<TabKey, number> = {
+      all: computedLeads.filter(l => !l.locked && !l.onHold && !l.favorite && !l.attemptsResults.every(r => r === AttemptResult.Voicemail)).length,
+      voicemail: computedLeads.filter(l => l.attemptsResults.every(r => r === AttemptResult.Voicemail) && !l.favorite).length,
+      interested: computedLeads.filter(l => l.result === FinalResult.Interested).length,
+      refused: computedLeads.filter(l => l.result === FinalResult.Refused).length,
+      onHold: computedLeads.filter(l => l.onHold && !l.favorite).length,
+      persistent: Object.keys(persistentLeads).length,
+      overdue: Object.values(persistentLeads).filter(l => l.overdue).length,
+      international: computedLeads.filter(l => l.international).length,
+    };
+    return counts;
+  }, [computedLeads, persistentLeads]);
 
   return (
     <div className="min-h-screen font-sans">
-      <Toast message={toastMessage} onDismiss={() => setToastMessage('')} />
+      <Toast message={toastConfig?.message || ''} onDismiss={() => setToastConfig(null)} action={toastConfig?.action} />
       <Modal 
         isOpen={modalState.isOpen}
         onClose={() => setModalState({ ...modalState, isOpen: false })}
         onConfirm={modalState.onConfirm}
         title={modalState.title}
-        // FIX: Use `confirmText` from state, which is more robust than deriving it from the title.
         confirmText={modalState.confirmText}
       >
         {modalState.message}
@@ -478,6 +671,7 @@ export default function App() {
                 {THEMES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
             <button onClick={handleExport} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] transition-colors">Exportar TXT</button>
+            <button onClick={handleExportXLSX} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] transition-colors">Exportar XLSX</button>
             
             {!isSaving && <button onClick={() => setIsSaving(true)} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] transition-colors">Salvar Sessão</button>}
             {isSaving && (
@@ -527,29 +721,23 @@ export default function App() {
           </div>
         </div>
         
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-center">
-            {Object.entries(summaryCounts).map(([key, value]) => (
-                <div key={key} className="bg-[var(--bg-secondary)] p-3 rounded-lg border border-[var(--border-primary)] transition-transform summary-card">
-                    <div className="text-2xl font-bold" style={{color: 'var(--accent)'}}>{value}</div>
-                    <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider">{key}</div>
-                </div>
-            ))}
-        </div>
-
         <div className="bg-[var(--bg-secondary)] p-2 rounded-lg border border-[var(--border-primary)]">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-1">
               {TABS.map(tab => (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+                  onClick={() => { setActiveTab(tab.key); setSelectedIds(new Set()); }}
+                  className={`relative px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
                     activeTab === tab.key
                       ? 'bg-[var(--accent)] text-[var(--accent-text)]'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
                   }`}
                 >
                   {tab.label}
+                  <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${activeTab === tab.key ? 'bg-[var(--accent-text)]/20' : 'bg-[var(--bg-primary)]/50'}`}>
+                    {tabCounts[tab.key]}
+                  </span>
                 </button>
               ))}
             </div>
@@ -563,15 +751,26 @@ export default function App() {
                 />
             </div>
           </div>
+          {(activeTab !== 'persistent' && activeTab !== 'overdue' && filteredLeads.length > 0) && (
+            <div className='mt-2 pt-2 border-t border-[var(--border-primary)] flex items-center'>
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded bg-[var(--bg-tertiary)] border-[var(--border-secondary)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                checked={filteredLeads.every(l => selectedIds.has(l.id))}
+                onChange={handleSelectAllVisible}
+              />
+              <label className="ml-2 text-sm text-[var(--text-secondary)]">Selecionar todos visíveis</label>
+            </div>
+          )}
           {(activeTab === 'persistent' || activeTab === 'overdue') && (
              <div className="mt-2 pt-2 border-t border-[var(--border-primary)] flex justify-between items-center gap-2 text-sm">
                  {notificationPermission === 'default' && (
-                     <button onClick={requestNotificationPermission} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--warning)]/20 text-[var(--warning-text)] hover:bg-[var(--warning)]/40 transition-colors">
+                     <button onClick={requestNotificationPermission} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--warning)]/20 text-[var(--warning)] hover:bg-[var(--warning)]/40 transition-colors">
                         <BellIcon className="w-4 h-4" /> Ativar Notificações
                      </button>
                  )}
                  {notificationPermission === 'denied' && (
-                     <span className="flex items-center gap-2 text-[var(--danger-text)] text-xs">
+                     <span className="flex items-center gap-2 text-[var(--danger)] text-xs">
                         <BellIcon className="w-4 h-4" /> Notificações bloqueadas
                      </span>
                  )}
@@ -589,7 +788,7 @@ export default function App() {
           )}
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
           {activeTab === 'persistent' || activeTab === 'overdue' ? (
             sortedPersistentLeads.map(lead => (
               <PersistentLeadCard 
@@ -605,8 +804,10 @@ export default function App() {
               <LeadCard 
                 key={lead.id} 
                 lead={lead} 
+                isSelected={selectedIds.has(lead.id)}
                 onUpdate={handleLeadUpdate} 
                 onOpenWhatsApp={handleOpenWhatsApp}
+                onToggleSelect={handleToggleSelect}
               />
             ))
           )}
@@ -622,8 +823,27 @@ export default function App() {
                 <p className="text-sm text-[var(--text-tertiary)]">Clique na estrela ★ em um lead para adicioná-lo aqui.</p>
             </div>
         )}
-
       </main>
+      <BulkActionBar
+        count={selectedIds.size}
+        onAttempt={(attempt) => performBulkAction((lead) => {
+            const newAttempts = [...lead.attempts] as [boolean, boolean, boolean];
+            newAttempts[attempt-1] = true;
+            return { attempts: newAttempts, currentAttempt: Math.max(lead.currentAttempt, attempt) };
+        }, `Tentativa ${attempt} marcada.`)}
+        onVoicemail={() => performBulkAction((lead) => {
+            if (lead.currentAttempt > 0) {
+                const newResults = [...lead.attemptsResults] as [AttemptResult | null, AttemptResult | null, AttemptResult | null];
+                newResults[lead.currentAttempt-1] = AttemptResult.Voicemail;
+                return { attemptsResults: newResults };
+            }
+            return {};
+        }, 'marcado(s) como Voicemail.')}
+        onToggleFavorite={handleBulkToggleFavorite}
+        onToggleHold={(onHold) => performBulkAction(() => ({ onHold }), onHold ? 'colocado(s) em espera.' : 'retomado(s).')}
+        onDelete={handleBulkDelete}
+        onClearSelection={() => setSelectedIds(new Set())}
+      />
     </div>
   );
 }
