@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="abyss">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lead Flow Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+<style>
+  @keyframes fade-in-scale-up {
+    0% {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes scale-in {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes confetti-fall {
+    0% { transform: translateY(0) rotateZ(0deg); opacity: 1; }
+    100% { transform: translateY(100px) rotateZ(360deg); opacity: 0; }
+  }
+  
+  @keyframes card-hop {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+
+  .summary-card:hover {
+    animation: card-hop 0.3s ease-in-out;
+  }
+
+  .animate-card-entry {
+    animation: fade-in-scale-up 0.4s ease-out forwards;
+  }
+
+  /* Default Theme: Moonlight */
+  :root, [data-theme="moonlight"] {
+    --bg-primary: #191E2A;
+    --bg-secondary: #232936;
+    --bg-tertiary: #3A4151;
+    --bg-hover: #4B5263;
+    --border-primary: #3A4151;
+    --border-secondary: #A0A8B7;
+    --text-primary: #E0E2E6;
+    --text-secondary: #A0A8B7;
+    --text-tertiary: #6C7381;
+    --accent: #82AAFF;
+    --accent-hover: #98B9FF;
+    --accent-text: #191E2A;
+    --success: #89D185;
+    --danger: #FF6B6B;
+    --warning: #FFD580;
+    --shadow-color-light: rgba(130, 170, 255, 0.1);
+  }
+  [data-theme="twilight"] {
+    --bg-primary: #1e1d2b;
+    --bg-secondary: #2a283e;
+    --bg-tertiary: #3f3c5b;
+    --bg-hover: #524f75;
+    --border-primary: #3f3c5b;
+    --border-secondary: #e0dce6;
+    --text-primary: #e0dce6;
+    --text-secondary: #c792ea;
+    --text-tertiary: #676e95;
+    --accent: #c792ea;
+    --accent-hover: #d9aeff;
+    --accent-text: #1e1d2b;
+    --success: #addb67;
+    --danger: #ff5370;
+    --warning: #ffcb6b;
+    --shadow-color-light: rgba(199, 146, 234, 0.1);
+  }
+  [data-theme="ruby"] {
+    --bg-primary: #1c1c1c;
+    --bg-secondary: #2a2a2a;
+    --bg-tertiary: #383838;
+    --bg-hover: #4e4e4e;
+    --border-primary: #383838;
+    --border-secondary: #d4d4d4;
+    --text-primary: #d4d4d4;
+    --text-secondary: #d16969;
+    --text-tertiary: #858585;
+    --accent: #d16969;
+    --accent-hover: #e07a7a;
+    --accent-text: #1c1c1c;
+    --success: #6a9955;
+    --danger: #f44747;
+    --warning: #d7ba7d;
+    --shadow-color-light: rgba(209, 105, 105, 0.1);
+  }
+  [data-theme="aurora"] {
+    --bg-primary: #2E3440;
+    --bg-secondary: #3B4252;
+    --bg-tertiary: #434C5E;
+    --bg-hover: #4C566A;
+    --border-primary: #434C5E;
+    --border-secondary: #D8DEE9;
+    --text-primary: #ECEFF4;
+    --text-secondary: #88C0D0;
+    --text-tertiary: #81A1C1;
+    --accent: #8FBCBB;
+    --accent-hover: #A3D0CF;
+    --accent-text: #2E3440;
+    --success: #A3BE8C;
+    --danger: #BF616A;
+    --warning: #EBCB8B;
+    --shadow-color-light: rgba(143, 188, 187, 0.1);
+  }
+  [data-theme="grove"] {
+    --bg-primary: #21262d;
+    --bg-secondary: #2d323a;
+    --bg-tertiary: #3a4048;
+    --bg-hover: #485058;
+    --border-primary: #3a4048;
+    --border-secondary: #c9d1d9;
+    --text-primary: #c9d1d9;
+    --text-secondary: #85ca9d;
+    --text-tertiary: #7d8590;
+    --accent: #85ca9d;
+    --accent-hover: #9bd5b1;
+    --accent-text: #21262d;
+    --success: #56d364;
+    --danger: #f85149;
+    --warning: #d29922;
+    --shadow-color-light: rgba(133, 202, 157, 0.1);
+  }
+  [data-theme="espresso"] {
+    --bg-primary: #2a211c;
+    --bg-secondary: #3c302a;
+    --bg-tertiary: #52433d;
+    --bg-hover: #6a574d;
+    --border-primary: #52433d;
+    --border-secondary: #d4c5be;
+    --text-primary: #d4c5be;
+    --text-secondary: #c89e7b;
+    --text-tertiary: #8a7a70;
+    --accent: #c89e7b;
+    --accent-hover: #d9b596;
+    --accent-text: #2a211c;
+    --success: #90a955;
+    --danger: #d96c47;
+    --warning: #f2c46e;
+    --shadow-color-light: rgba(200, 158, 123, 0.1);
+  }
+  [data-theme="oceanic"] {
+    --bg-primary: #1d262f;
+    --bg-secondary: #26333f;
+    --bg-tertiary: #364858;
+    --bg-hover: #485d71;
+    --border-primary: #364858;
+    --border-secondary: #b2cce1;
+    --text-primary: #b2cce1;
+    --text-secondary: #6cb6c0;
+    --text-tertiary: #6f8090;
+    --accent: #6cb6c0;
+    --accent-hover: #83c9d3;
+    --accent-text: #1d262f;
+    --success: #82c079;
+    --danger: #c07079;
+    --warning: #c0a870;
+    --shadow-color-light: rgba(108, 182, 192, 0.1);
+  }
+  [data-theme="amethyst"] {
+    --bg-primary: #24222a;
+    --bg-secondary: #312e3f;
+    --bg-tertiary: #454059;
+    --bg-hover: #58536e;
+    --border-primary: #454059;
+    --border-secondary: #dcd7ea;
+    --text-primary: #dcd7ea;
+    --text-secondary: #b0a9de;
+    --text-tertiary: #837c9f;
+    --accent: #b0a9de;
+    --accent-hover: #c4bfe8;
+    --accent-text: #24222a;
+    --success: #a9deaa;
+    --danger: #deabaa;
+    --warning: #ded7aa;
+    --shadow-color-light: rgba(176, 169, 222, 0.1);
+  }
+  [data-theme="graphite"] {
+    --bg-primary: #1f1f1f;
+    --bg-secondary: #2b2b2b;
+    --bg-tertiary: #3a3a3a;
+    --bg-hover: #4a4a4a;
+    --border-primary: #3a3a3a;
+    --border-secondary: #cccccc;
+    --text-primary: #cccccc;
+    --text-secondary: #8c8c8c;
+    --text-tertiary: #5e5e5e;
+    --accent: #00aaff;
+    --accent-hover: #33bbff;
+    --accent-text: #1f1f1f;
+    --success: #33cc33;
+    --danger: #ff3333;
+    --warning: #ffaa00;
+    --shadow-color-light: rgba(0, 170, 255, 0.1);
+  }
+  [data-theme="sakura"] {
+    --bg-primary: #2a2426;
+    --bg-secondary: #3c3437;
+    --bg-tertiary: #52474a;
+    --bg-hover: #67595d;
+    --border-primary: #52474a;
+    --border-secondary: #e6d9db;
+    --text-primary: #e6d9db;
+    --text-secondary: #e6a7b3;
+    --text-tertiary: #a48a90;
+    --accent: #e6a7b3;
+    --accent-hover: #f1c2cb;
+    --accent-text: #2a2426;
+    --success: #a7e6b3;
+    --danger: #e6a7a7;
+    --warning: #e6d0a7;
+    --shadow-color-light: rgba(230, 167, 179, 0.1);
+  }
+  
+  /* Custom checkbox styles for theming */
+  input[type="checkbox"] {
+    color: var(--accent);
+  }
+  
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--bg-hover);
+  }
+</style>
+</head>
+  <body class="bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-500">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

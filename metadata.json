@@ -1,0 +1,5 @@
+{
+  "name": "Lead Flow Manager",
+  "description": "An advanced lead management application to streamline call-based workflows. Import, track, and manage leads with features like call attempts, status tracking, persistent lists, and WhatsApp integration.",
+  "requestFramePermissions": []
+}
