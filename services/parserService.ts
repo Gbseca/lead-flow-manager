@@ -1,4 +1,4 @@
-import type { Lead } from '../types';
+import type { Lead, HistoryEvent } from '../types';
 
 interface ParseOptions {
   hideRJ: boolean;
@@ -65,24 +65,34 @@ function normalizeParsed(p: ParsedLine, opts: ParseOptions): Lead | null {
   const { hideRJ, operatorPrefix } = opts;
   const now = Date.now();
   
+  const creationEvent: HistoryEvent = {
+    id: `evt-${now}`,
+    type: 'creation',
+    timestamp: now,
+    details: 'Lead criado a partir da importação.',
+  };
+
   const lead: Omit<Lead, 'id'> = {
     name: p.name || '--',
     original: p.raw || '',
     attempts: [false, false, false],
     attemptsResults: [null, null, null],
     currentAttempt: 0,
-    result: '',
+    result: '', // Empty string for no result
     locked: false,
     note: '',
     favorite: false,
     scheduleISO: '',
     onHold: false,
     createdAt: now,
+    lastUpdatedAt: now,
     priority: 3,
     display: '',
     tel: '',
     wa: '',
     international: p.international,
+    history: [creationEvent],
+    audioNotes: [],
   };
 
   if (p.international) {
@@ -120,4 +130,32 @@ export async function importFromText(txt: string, opts: ParseOptions): Promise<L
   const mapped = lines.map(l => parseLineGeneric(l)).filter((p): p is ParsedLine => p !== null);
   const normalized = mapped.map(p => normalizeParsed(p, opts)).filter((l): l is Lead => l !== null);
   return normalized;
+}
+
+export async function importFromFile(file: File, opts: ParseOptions): Promise<Lead[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        // @ts-ignore
+        if (typeof XLSX === 'undefined') {
+          return reject(new Error("A biblioteca de importação (SheetJS) não foi carregada."));
+        }
+        const data = e.target?.result;
+        // @ts-ignore
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        // @ts-ignore
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        const textContent = json.map((row: any[]) => row.join(' ')).join('\n');
+        resolve(importFromText(textContent, opts));
+      } catch (error) {
+        reject(error);
+      }
+    };
+    reader.onerror = (e) => reject(e);
+    reader.readAsBinaryString(file);
+  });
 }

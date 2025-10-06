@@ -5,13 +5,14 @@ interface ToastProps {
   message: string;
   duration?: number;
   onDismiss: () => void;
+  type?: 'accent' | 'success';
   action?: {
     label: string;
     onAction: () => void;
   };
 }
 
-export const Toast: React.FC<ToastProps> = ({ message, duration = 5000, onDismiss, action }) => {
+export const Toast: React.FC<ToastProps> = ({ message, duration = 5000, onDismiss, type = 'accent', action }) => {
   useEffect(() => {
     if (!message) return;
     const timer = setTimeout(() => {
@@ -32,13 +33,18 @@ export const Toast: React.FC<ToastProps> = ({ message, duration = 5000, onDismis
     }
   };
 
+  const colors = {
+    accent: 'bg-[var(--accent)] text-[var(--accent-text)]',
+    success: 'bg-[var(--success)] text-white',
+  }
+
   return (
-    <div className="fixed bottom-5 right-5 bg-[var(--accent)] text-[var(--accent-text)] py-2 px-4 rounded-lg shadow-lg flex items-center gap-4 animate-fade-in-up z-50">
+    <div className={`fixed bottom-5 right-5 py-2 px-4 rounded-lg shadow-lg flex items-center gap-4 animate-fade-in-up z-50 ${colors[type]}`}>
       <span>{message}</span>
       {action && (
         <button
           onClick={handleActionClick}
-          className="font-bold uppercase text-sm bg-[var(--accent-text)]/10 px-2 py-0.5 rounded hover:bg-[var(--accent-text)]/20"
+          className={`font-bold uppercase text-sm ${type === 'accent' ? 'bg-[var(--accent-text)]/10' : 'bg-white/20'} px-2 py-0.5 rounded hover:bg-white/30`}
         >
           {action.label}
         </button>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExclamationTriangleIcon } from './icons';
+import { ExclamationTriangleIcon, InformationCircleIcon } from './icons';
 
 interface ModalProps {
   isOpen: boolean;
@@ -9,15 +9,35 @@ interface ModalProps {
   children: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
+  iconType?: 'warning' | 'info' | 'none';
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, onConfirm, title, children, confirmText = 'Confirmar', cancelText = 'Cancelar' }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, onConfirm, title, children, confirmText = 'Confirmar', cancelText = 'Cancelar', iconType = 'warning' }) => {
   if (!isOpen) return null;
 
   const handleConfirm = () => {
     onConfirm();
     onClose();
   };
+  
+  const Icon = () => {
+    switch (iconType) {
+        case 'warning':
+            return (
+                <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--warning)]/10">
+                    <ExclamationTriangleIcon className="w-6 h-6 text-[var(--warning)]" />
+                </div>
+            );
+        case 'info':
+            return (
+                <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--accent)]/10">
+                    <InformationCircleIcon className="w-6 h-6 text-[var(--accent)]" />
+                </div>
+            );
+        default:
+            return null;
+    }
+  }
 
   return (
     <div
@@ -32,9 +52,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, onConfirm, title,
       >
         <div className="p-6">
           <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full bg-[var(--warning)]/10">
-                <ExclamationTriangleIcon className="w-6 h-6 text-[var(--warning)]" />
-            </div>
+            <Icon />
             <div className="flex-grow">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">{title}</h3>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">{children}</p>
@@ -50,7 +68,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, onConfirm, title,
           </button>
           <button
             onClick={handleConfirm}
-            className="px-4 py-2 text-sm font-semibold rounded-md bg-[var(--danger)]/80 hover:bg-[var(--danger)] text-white transition-colors"
+            className="px-4 py-2 text-sm font-semibold rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text)] transition-colors"
           >
             {confirmText}
           </button>

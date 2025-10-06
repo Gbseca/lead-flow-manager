@@ -1,21 +1,25 @@
 
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, memo } from 'react';
 import type { PersistentLead } from '../types';
-import { PhoneIcon, StarIcon, WhatsAppIcon } from './icons';
+import { PhoneIcon, StarIcon, WhatsAppIcon, InformationCircleIcon } from './icons';
 
 interface PersistentLeadCardProps {
   lead: PersistentLead;
   onUpdate: (wa: string, updates: Partial<PersistentLead>) => void;
   onRemove: (wa: string) => void;
   onOpenWhatsApp: (lead: PersistentLead) => void;
+  onOpenDetails: (wa: string) => void;
 }
 
-export const PersistentLeadCard: React.FC<PersistentLeadCardProps> = ({ lead, onUpdate, onRemove, onOpenWhatsApp }) => {
-  const [note, setNote] = useState(lead.note || '');
+export const PersistentLeadCard: React.FC<PersistentLeadCardProps> = memo(({ lead, onUpdate, onRemove, onOpenWhatsApp, onOpenDetails }) => {
   const [schedule, setSchedule] = useState(lead.scheduleISO || '');
   const [priority, setPriority] = useState(lead.priority || 3);
   const [countdown, setCountdown] = useState('');
-  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    setSchedule(lead.scheduleISO || '');
+  }, [lead.scheduleISO]);
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -49,23 +53,26 @@ export const PersistentLeadCard: React.FC<PersistentLeadCardProps> = ({ lead, on
 
   const handleSave = () => {
     const updates: Partial<PersistentLead> = { scheduleISO: schedule, priority };
-    if (note !== lead.note) {
-        updates.note = note;
-        const newHistoryEntry = { timestamp: Date.now(), text: lead.note || '' };
-        updates.noteHistory = [newHistoryEntry, ...(lead.noteHistory || [])];
-    }
     onUpdate(lead.wa, updates);
   };
   
-  const handleSnooze = () => {
+  const handleQuickSchedule = (minutes: number) => {
     const now = new Date();
     const currentSchedule = lead.scheduleISO ? new Date(lead.scheduleISO) : now;
-    const newTime = (currentSchedule.getTime() > now.getTime() ? currentSchedule : now).getTime() + 15 * 60 * 1000;
+    const newTime = (currentSchedule.getTime() > now.getTime() ? currentSchedule : now).getTime() + minutes * 60 * 1000;
     
     const newScheduleDate = new Date(newTime);
-    // Format to YYYY-MM-DDTHH:mm
     const formatted = newScheduleDate.toISOString().slice(0, 16);
     
+    setSchedule(formatted);
+    onUpdate(lead.wa, { scheduleISO: formatted });
+  };
+  
+  const handleTomorrow9AM = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+    const formatted = tomorrow.toISOString().slice(0, 16);
     setSchedule(formatted);
     onUpdate(lead.wa, { scheduleISO: formatted });
   };
@@ -86,6 +93,7 @@ export const PersistentLeadCard: React.FC<PersistentLeadCardProps> = ({ lead, on
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                <a href={lead.tel} className="p-2 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--success)] text-[var(--text-secondary)] hover:text-[var(--accent-text)] transition-colors"><PhoneIcon className="w-5 h-5" /></a>
                 <button onClick={() => onOpenWhatsApp(lead)} className="p-2 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--success)] text-[var(--text-secondary)] hover:text-[var(--accent-text)] transition-colors"><WhatsAppIcon /></button>
+                <button onClick={() => onOpenDetails(lead.wa)} className="p-2 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--success)] text-[var(--text-secondary)] hover:text-[var(--accent-text)] transition-colors"><InformationCircleIcon className="w-5 h-5" /></button>
                 <button onClick={() => onRemove(lead.wa)} className="p-2 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--warning)] text-[var(--warning)] hover:text-[var(--accent-text)] transition-colors">
                     <StarIcon solid={true} className="w-5 h-5" />
                 </button>
@@ -95,34 +103,11 @@ export const PersistentLeadCard: React.FC<PersistentLeadCardProps> = ({ lead, on
       </div>
       
       <div className="mt-4 space-y-3">
-        <div>
-          <div className="flex justify-between items-center mb-1">
-            <label className="text-xs font-semibold text-[var(--text-secondary)]">Observação</label>
-            {lead.noteHistory && lead.noteHistory.length > 0 && (
-                <button onClick={() => setShowHistory(!showHistory)} className="text-xs text-[var(--accent)] hover:underline">
-                    {showHistory ? 'Ocultar Histórico' : 'Ver Histórico'}
-                </button>
-            )}
-          </div>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            onBlur={handleSave}
-            placeholder="Adicione uma nota..."
-            className="w-full bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md p-2 text-sm text-[var(--text-primary)] focus:ring-1 focus:ring-[var(--warning)] focus:border-[var(--warning)]"
-            rows={2}
-          ></textarea>
-           {showHistory && (
-             <div className="mt-2 p-2 bg-[var(--bg-primary)] rounded-md max-h-32 overflow-y-auto">
-                {lead.noteHistory?.map(entry => (
-                    <div key={entry.timestamp} className="text-xs text-[var(--text-secondary)] border-b border-[var(--border-primary)] last:border-b-0 py-1">
-                        <span className="font-semibold text-[var(--text-tertiary)]">{new Date(entry.timestamp).toLocaleString()}:</span>
-                        <p className="whitespace-pre-wrap">{entry.text || 'Nota vazia'}</p>
-                    </div>
-                ))}
+        {lead.note && (
+             <div className="p-2 bg-[var(--bg-primary)]/50 rounded-md text-sm text-[var(--text-secondary)] italic truncate">
+                "{lead.note}"
              </div>
-           )}
-        </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -156,10 +141,14 @@ export const PersistentLeadCard: React.FC<PersistentLeadCardProps> = ({ lead, on
         </div>
       </div>
 
-      <div className="mt-4 flex justify-end gap-2">
-        <button onClick={handleSnooze} className="px-4 py-2 text-sm font-semibold rounded-md bg-[var(--warning)]/20 hover:bg-[var(--warning)]/40 text-[var(--warning)] transition-colors">Adiar 15min</button>
-        <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text)] transition-colors">Salvar Alterações</button>
+      <div className="mt-4 flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+            <button onClick={() => handleQuickSchedule(15)} className="px-3 py-1 text-xs font-semibold rounded-md bg-[var(--warning)]/20 hover:bg-[var(--warning)]/40 text-[var(--warning)] transition-colors">15min</button>
+            <button onClick={() => handleQuickSchedule(60)} className="px-3 py-1 text-xs font-semibold rounded-md bg-[var(--warning)]/20 hover:bg-[var(--warning)]/40 text-[var(--warning)] transition-colors">+1h</button>
+            <button onClick={() => handleQuickSchedule(24 * 60)} className="px-3 py-1 text-xs font-semibold rounded-md bg-[var(--warning)]/20 hover:bg-[var(--warning)]/40 text-[var(--warning)] transition-colors">+1d</button>
+            <button onClick={handleTomorrow9AM} className="px-3 py-1 text-xs font-semibold rounded-md bg-[var(--warning)]/20 hover:bg-[var(--warning)]/40 text-[var(--warning)] transition-colors">Amanhã 9h</button>
+        </div>
       </div>
     </div>
   );
-};
+});

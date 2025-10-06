@@ -6,7 +6,6 @@ interface BulkActionBarProps {
   count: number;
   onAttempt: (attempt: 1 | 2 | 3) => void;
   onVoicemail: () => void;
-  onToggleFavorite: (favorite: boolean) => void;
   onToggleHold: (onHold: boolean) => void;
   onDelete: () => void;
   onClearSelection: () => void;
@@ -16,7 +15,6 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   count,
   onAttempt,
   onVoicemail,
-  onToggleFavorite,
   onToggleHold,
   onDelete,
   onClearSelection,
@@ -39,8 +37,6 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
           <div className="w-px h-6 bg-[var(--border-primary)] mx-2"></div>
           
           <button onClick={onVoicemail} className="p-2 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)]" title="Marcar como Voicemail"><VoicemailIcon className="w-5 h-5" /></button>
-          <button onClick={() => onToggleFavorite(true)} className="p-2 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)]" title="Adicionar a Persistent"><StarIcon solid={false} className="w-5 h-5" /></button>
-          <button onClick={() => onToggleFavorite(false)} className="p-2 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] text-[var(--warning)]" title="Remover de Persistent"><StarIcon solid={true} className="w-5 h-5" /></button>
           <button onClick={() => onToggleHold(true)} className="p-2 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)]" title="Colocar em Espera"><PauseIcon className="w-5 h-5" /></button>
           
           <div className="w-px h-6 bg-[var(--border-primary)] mx-2"></div>

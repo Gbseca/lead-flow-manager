@@ -13,7 +13,8 @@
   "imports": {
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.22.0"
   }
 }
 </script>
@@ -40,13 +41,18 @@
   }
 
   @keyframes confetti-fall {
-    0% { transform: translateY(0) rotateZ(0deg); opacity: 1; }
-    100% { transform: translateY(100px) rotateZ(360deg); opacity: 0; }
+    0% { transform: translateY(-10vh) rotateZ(0deg); opacity: 1; }
+    100% { transform: translateY(110vh) rotateZ(720deg); opacity: 0; }
   }
   
   @keyframes card-hop {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-5px); }
+  }
+  
+  @keyframes card-flip-y {
+    0% { transform: rotateY(0deg); }
+    100% { transform: rotateY(180deg); }
   }
 
   .summary-card:hover {
@@ -55,6 +61,57 @@
 
   .animate-card-entry {
     animation: fade-in-scale-up 0.4s ease-out forwards;
+  }
+  
+  .card-flipper {
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+  }
+  .card-flipper.is-flipped {
+    transform: rotateY(180deg);
+  }
+  .card-front, .card-back {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  .card-back {
+    transform: rotateY(180deg);
+  }
+
+  /* Focus Mode */
+  .focus-mode .focusable-hide {
+    display: none;
+  }
+
+  /* Timeline */
+  .timeline {
+      position: relative;
+      padding-left: 2rem;
+  }
+  .timeline::before {
+      content: '';
+      position: absolute;
+      left: 10px;
+      top: 5px;
+      bottom: 5px;
+      width: 2px;
+      background-color: var(--border-primary);
+  }
+  .timeline-item {
+      position: relative;
+  }
+  .timeline-item:not(:last-child) {
+      margin-bottom: 1.5rem;
+  }
+  .timeline-dot {
+      position: absolute;
+      left: -2.2rem;
+      top: 5px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-secondary);
+      background-color: var(--accent);
   }
 
   /* Default Theme: Moonlight */

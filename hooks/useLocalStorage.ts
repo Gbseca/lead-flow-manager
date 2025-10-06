@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
 function getValue<T,>(key: string, initialValue: T | (() => T)): T {
   const savedValue = localStorage.getItem(key);
@@ -17,7 +18,8 @@ function getValue<T,>(key: string, initialValue: T | (() => T)): T {
   return initialValue;
 }
 
-export function useLocalStorage<T,>(key: string, initialValue: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] {
+// FIX: Changed React.Dispatch<React.SetStateAction<T>> to Dispatch<SetStateAction<T>> and imported the types.
+export function useLocalStorage<T,>(key: string, initialValue: T | (() => T)): [T, Dispatch<SetStateAction<T>>] {
   const [value, setValue] = useState<T>(() => getValue(key, initialValue));
 
   useEffect(() => {
