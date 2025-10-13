@@ -161,59 +161,6 @@ export async function generateFollowUpMessage(lead: Lead | PersistentLead, objec
     return response.text.trim();
 }
 
-export async function recycleLeads(leads: Lead[]): Promise<string[]> {
-    if (!API_KEY) throw new Error("API key not configured.");
-
-    const leadsForAnalysis = leads.map(l => ({
-        id: l.id,
-        result: l.result,
-        attempts: l.attempts.filter(Boolean).length,
-        lastUpdatedAt: l.lastUpdatedAt
-    }));
-
-    const prompt = `
-        Você é um assistente de vendas inteligente. Sua tarefa é reciclar uma lista de leads.
-        Analise a lista de leads JSON a seguir.
-        1.  Filtre e remova permanentemente quaisquer leads com um resultado de 'refused' (recusado).
-        2.  Para os leads restantes, calcule uma "pontuação de reengajamento" de 1 a 100.
-        3.  Priorize leads com base nos seguintes critérios, em ordem de importância:
-            a.  Leads que nunca foram contatados com sucesso (ex: apenas voicemails).
-            b.  Leads cujo último contato foi há mais tempo (lastUpdatedAt mais antigo).
-            c.  Leads com menos tentativas de chamada.
-        4.  Retorne um JSON com um único array chamado "sortedIds", contendo os IDs dos leads que devem ser recontactados, ordenados da pontuação de reengajamento mais alta para a mais baixa.
-
-        Leads:
-        ${JSON.stringify(leadsForAnalysis)}
-    `;
-
-    const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    sortedIds: {
-                        type: Type.ARRAY,
-                        items: { type: Type.STRING }
-                    }
-                },
-                required: ['sortedIds']
-            }
-        }
-    });
-
-    try {
-        const jsonText = response.text.trim();
-        const parsed = JSON.parse(jsonText);
-        return parsed.sortedIds || [];
-    } catch (e) {
-        console.error("Failed to parse recycled leads from AI response:", e);
-        return [];
-    }
-}
-
 // --- Power Hour AI Functions ---
 
 export async function getLiveCallFeedback(transcript: string): Promise<string> {

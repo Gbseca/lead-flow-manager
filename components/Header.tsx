@@ -7,7 +7,7 @@ interface HeaderProps {
     onSave: (name: string, callback: (msg: string) => void) => void;
     onLoad: (name: string) => void;
     onDelete: (name: string) => void;
-    onRecycle: (name: string) => void;
+    onRecycle: () => void;
     onExport: () => void;
     onExportXLSX: () => void;
     onOpenSettings: () => void;
@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = (props) => {
                         {Object.keys(saves).sort((a,b) => saves[b].createdAt - saves[a].createdAt).map(name => <option key={name} value={name}>{name}</option>)}
                     </select>
                     <button onClick={() => onLoad(selectedSave)} disabled={!selectedSave} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] disabled:opacity-50">Carregar</button>
-                    <button onClick={() => onRecycle(selectedSave)} disabled={!selectedSave} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--success)]/80 text-white hover:bg-[var(--success)] disabled:opacity-50 flex items-center gap-1.5"><ArrowPathIcon className="w-4 h-4" />Reciclar</button>
+                    <button onClick={onRecycle} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--success)]/80 text-white hover:bg-[var(--success)] flex items-center gap-1.5"><ArrowPathIcon className="w-4 h-4" />Reciclar Tudo</button>
                     <button onClick={() => onDelete(selectedSave)} disabled={!selectedSave} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-[var(--danger)]/80 text-white hover:bg-[var(--danger)] disabled:opacity-50">Deletar</button>
                 </div>
             </div>

@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { importFromText, importFromFile } from '../services/parserService';
-import type { Lead, PersistentLead, SaveSlot, Settings, HistoryEvent, CustomStatus, AudioNote, Workflow, SuccessInsight } from '../types';
-import { suggestTagsForLead, recycleLeads, analyzeSuccessPatterns } from '../services/geminiService';
+import type { Lead, PersistentLead, SaveSlot, Settings, HistoryEvent, CustomStatus, AudioNote, Workflow, SuccessInsight, AttemptResult } from '../types';
+import { suggestTagsForLead, analyzeSuccessPatterns } from '../services/geminiService';
 import { checkAndApplyWorkflows } from '../services/workflowService';
 
 const INITIAL_SETTINGS: Settings = {
@@ -281,52 +281,50 @@ export function useLeadsManager() {
       }
   }, [saves, setLeads]);
 
-  const recycleSession = async (name: string, showToast: (msg: string) => void) => {
-    if (!name || !saves[name]) {
-        showToast("Selecione uma sessão salva para reciclar.");
+  const recycleSession = (showToast: (msg: string) => void) => {
+    const uniqueLeadsMap = new Map<string, Lead>();
+    
+    const sortedSaves = Object.values(saves).sort((a, b) => a.createdAt - b.createdAt);
+
+    for (const save of sortedSaves) {
+        for (const lead of save.leads) {
+            uniqueLeadsMap.set(lead.wa, lead);
+        }
+    }
+
+    const allUniqueLeads = Array.from(uniqueLeadsMap.values());
+    const recyclableLeads = allUniqueLeads.filter(l => !l.locked);
+
+    if (recyclableLeads.length === 0) {
+        showToast("Nenhum lead reciclável encontrado em todas as listas salvas.");
         return;
     }
-    try {
-        showToast(`Reciclando a lista "${name}" com IA...`);
-        const savedLeads = saves[name].leads;
-        const sortedIds = await recycleLeads(savedLeads);
 
-        if (sortedIds.length === 0) {
-            showToast("A IA não encontrou leads para reengajamento nesta lista.");
-            return;
-        }
-
-        const leadsMap = new Map(savedLeads.map(l => [l.id, l]));
-        const recycledLeads = sortedIds
-            .map(id => leadsMap.get(id))
-            .filter((l): l is Lead => !!l)
-            .map(l => ({
-                ...l,
-                // Reset progress for the new session
-                attempts: [false, false, false],
-                attemptsResults: [null, null, null],
-                currentAttempt: 0,
-                result: '',
-                locked: false,
-                onHold: false,
-                lastUpdatedAt: Date.now(),
-                history: [
-                    ...l.history,
-                    {
-                        id: `evt-${Date.now()}`,
-                        type: 'import',
-                        timestamp: Date.now(),
-                        details: `Reciclado da lista "${name}" pela IA.`
-                    }
-                ]
-            }));
-
-        setLeads(recycledLeads);
-        showToast(`${recycledLeads.length} leads foram reciclados e carregados para uma nova rodada!`);
-    } catch (error) {
-        console.error("Error recycling session:", error);
-        showToast("Ocorreu um erro ao reciclar a lista.");
-    }
+    const recycledLeads = recyclableLeads.map(l => ({
+        ...l,
+        attempts: [false, false, false] as [boolean, boolean, boolean],
+        attemptsResults: [null, null, null] as [AttemptResult | null, AttemptResult | null, AttemptResult | null],
+        currentAttempt: 0,
+        result: '',
+        locked: false,
+        onHold: false,
+        favorite: false,
+        lastUpdatedAt: Date.now(),
+        history: [
+            ...(l.history || []),
+            {
+                id: `evt-${Date.now()}-${Math.random()}`,
+                type: 'import' as const,
+                timestamp: Date.now(),
+                details: `Reciclado de listas anteriores.`
+            }
+        ]
+    }));
+    
+    const saveName = 'Reciclagem ♻️';
+    setSaves(prev => ({ ...prev, [saveName]: { leads: recycledLeads, createdAt: Date.now() }}));
+    setLeads(recycledLeads);
+    showToast(`${recycledLeads.length} leads reciclados. A lista foi carregada e salva como "${saveName}".`);
   };
   
   const deleteSession = useCallback((name: string, showToast: (msg:string) => void) => {

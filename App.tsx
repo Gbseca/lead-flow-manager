@@ -478,12 +478,12 @@ export default function App() {
             message: `Deseja carregar a sessão "${name}"? Os leads atuais não salvos serão perdidos.`,
             onConfirm: () => actions.loadSession(name, showToast),
         })}
-        onRecycle={(name) => setModalState({
+        onRecycle={() => setModalState({
             isOpen: true,
-            title: 'Reciclar Sessão com IA',
-            message: `Deseja reciclar a sessão "${name}"? A IA irá analisar, filtrar e reordenar os leads para uma nova rodada. A lista atual será substituída.`,
-            onConfirm: () => actions.recycleSession(name, showToast),
-            confirmText: 'Reciclar',
+            title: 'Reciclar Todas as Listas',
+            message: 'Deseja criar uma nova lista com todos os leads não finalizados e de voicemail de TODAS as listas salvas? A lista atual será substituída e um novo save "Reciclagem ♻️" será criado.',
+            onConfirm: () => actions.recycleSession(showToast),
+            confirmText: 'Reciclar Tudo',
             iconType: 'info'
         })}
         onDelete={(name) => setModalState({
