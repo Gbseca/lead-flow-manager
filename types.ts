@@ -11,8 +11,8 @@ export interface HistoryEvent {
 }
 
 export interface AudioNote {
-  id: string;
-  url: string; //
+  id:string;
+  url: string; // Can be a Base64 Data URI for persistent storage
   duration: number;
   createdAt: number;
   transcript?: string;

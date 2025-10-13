@@ -35,6 +35,15 @@ const Timeline: React.FC<{history: HistoryEvent[]}> = ({ history }) => (
     </div>
 );
 
+const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
 const AudioNotes: React.FC<{ lead: Lead | PersistentLead, onUpdate: (id: string, updates: Partial<Lead | PersistentLead>) => void }> = ({ lead, onUpdate }) => {
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -72,15 +81,16 @@ const AudioNotes: React.FC<{ lead: Lead | PersistentLead, onUpdate: (id: string,
             }
             // --------------------------------
 
-            mediaRecorder.onstop = () => {
+            mediaRecorder.onstop = async () => {
                 recognitionRef.current?.recognition.stop();
                 const transcript = recognitionRef.current?.getTranscript();
                 
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                const audioUrl = URL.createObjectURL(audioBlob);
+                const base64AudioUrl = await blobToBase64(audioBlob);
+
                 const newAudioNote: AudioNote = {
                     id: `audio-${Date.now()}`,
-                    url: audioUrl,
+                    url: base64AudioUrl,
                     duration: 0, // Placeholder
                     createdAt: Date.now(),
                     transcript: transcript

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLeadsManager } from './hooks/useLeadsManager';
 import type { Lead, PersistentLead, Settings, TabKey, PowerHourSession, PowerHourGoal, SuccessInsight } from './types';
 import { AttemptResult } from './types';
@@ -62,6 +62,7 @@ export default function App() {
   const [powerHourSession, setPowerHourSession] = useState<PowerHourSession | null>(null);
   const [isAnalyzingSuccess, setIsAnalyzingSuccess] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const powerHourUpdateQueueRef = useRef(Promise.resolve());
 
 
   const showToast = (message: string, type: ToastConfig['type'] = 'accent', action?: ToastConfig['action']) => {
@@ -257,47 +258,64 @@ export default function App() {
     return leads.find(l => l.id === nextId) || null;
   }, [powerHourSession, leads]);
 
-  const handlePowerHourUpdate = async (id: string, updates: Partial<Lead>) => {
-    handleUpdateLead(id, updates);
-    if (!powerHourSession) return;
-    
-    let updatedSession = { ...powerHourSession };
-
-    // Update progress
+  const handlePowerHourUpdate = (id: string, updates: Partial<Lead>) => {
     const originalLead = leads.find(l => l.id === id);
-    if (updates.currentAttempt && updates.currentAttempt > (originalLead?.currentAttempt || 0)) {
-        updatedSession.progress.calls++;
-    }
-    if (updates.result) {
-        const status = settings.customStatuses.find(s => s.id === updates.result);
-        if (status?.isPositive) {
-            updatedSession.progress.positives++;
-        }
-    }
-
-    // AI logic for voicemail requeue
-    if (updates.attemptsResults) {
-        const lastResult = updates.attemptsResults[updates.attemptsResults.length-1];
-        if(lastResult === AttemptResult.Voicemail && originalLead && (originalLead.aiScore || 0) > 60) {
-            const decision = await decideOnRequeue(originalLead);
-            if (decision.requeue) {
-                updatedSession.leadQueue.push(id);
-                updatedSession.coachMessages.push({ id: Date.now(), text: `IA: ${decision.reason} Vou reinserir ${originalLead.name} no final do sprint.`});
+    handleUpdateLead(id, updates);
+  
+    powerHourUpdateQueueRef.current = powerHourUpdateQueueRef.current.then(() => 
+      new Promise<void>(resolve => {
+        setPowerHourSession(currentSession => {
+          if (!currentSession) {
+            resolve();
+            return null;
+          }
+  
+          // --- Synchronous updates ---
+          let updatedSession = { ...currentSession };
+          if (updates.currentAttempt && updates.currentAttempt > (originalLead?.currentAttempt || 0)) {
+            updatedSession.progress.calls++;
+          }
+          if (updates.result) {
+            const status = settings.customStatuses.find(s => s.id === updates.result);
+            if (status?.isPositive) {
+              updatedSession.progress.positives++;
             }
-        }
-    }
-
-    // Remove processed lead from queue
-    updatedSession.leadQueue = updatedSession.leadQueue.slice(1);
-    
-    // Check for motivational message
-    if(updatedSession.progress.calls > 0 && updatedSession.progress.calls % 5 === 0) {
-        const timeLeft = updatedSession.duration - ((Date.now() - updatedSession.startTime) / (1000 * 60));
-        const message = await getMotivationalMessage(updatedSession.progress, updatedSession.goals, Math.round(timeLeft));
-        updatedSession.coachMessages.push({ id: Date.now(), text: `IA: ${message}` });
-    }
-
-    setPowerHourSession(updatedSession);
+          }
+          updatedSession.leadQueue = updatedSession.leadQueue.slice(1);
+  
+          // --- Asynchronous logic ---
+          (async () => {
+            let asyncUpdates: Partial<PowerHourSession> = {};
+  
+            if (updates.attemptsResults && originalLead) {
+              const lastResult = updates.attemptsResults[(updates.currentAttempt || originalLead.currentAttempt) - 1];
+              if (lastResult === AttemptResult.Voicemail && (originalLead.aiScore || 0) > 60) {
+                const decision = await decideOnRequeue(originalLead);
+                if (decision.requeue) {
+                  asyncUpdates.leadQueue = [...updatedSession.leadQueue, id];
+                  asyncUpdates.coachMessages = [...updatedSession.coachMessages, { id: Date.now(), text: `IA: ${decision.reason} Vou reinserir ${originalLead.name} no final do sprint.` }];
+                }
+              }
+            }
+  
+            if (updates.currentAttempt && updatedSession.progress.calls > 0 && updatedSession.progress.calls % 5 === 0) {
+              const baseSession = { ...updatedSession, ...asyncUpdates };
+              const timeLeft = baseSession.duration - ((Date.now() - baseSession.startTime) / (1000 * 60));
+              const message = await getMotivationalMessage(baseSession.progress, baseSession.goals, Math.round(timeLeft));
+              asyncUpdates.coachMessages = [...(asyncUpdates.coachMessages || updatedSession.coachMessages), { id: Date.now(), text: `IA: ${message}` }];
+            }
+  
+            if (Object.keys(asyncUpdates).length > 0) {
+              setPowerHourSession(prev => prev ? { ...prev, ...asyncUpdates } : null);
+            }
+            
+            resolve();
+          })();
+  
+          return updatedSession;
+        });
+      })
+    );
   };
 
   const detailLead = useMemo(() => {

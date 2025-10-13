@@ -26,7 +26,14 @@ const THEMES = [
 
 const DEFAULT_COLORS = ['#89D185', '#FF6B6B', '#FFD580', '#82AAFF', '#c792ea', '#88C0D0', '#d16969'];
 
-const CustomStatusManager: React.FC<{ statuses: CustomStatus[], onChange: (statuses: CustomStatus[]) => void }> = ({ statuses, onChange }) => {
+interface CustomStatusManagerProps {
+    statuses: CustomStatus[];
+    onChange: (statuses: CustomStatus[]) => void;
+    workflows: Workflow[];
+    onWorkflowChange: (workflows: Workflow[]) => void;
+}
+
+const CustomStatusManager: React.FC<CustomStatusManagerProps> = ({ statuses, onChange, workflows, onWorkflowChange }) => {
     
     const handleAdd = () => {
         const newStatus: CustomStatus = {
@@ -43,7 +50,17 @@ const CustomStatusManager: React.FC<{ statuses: CustomStatus[], onChange: (statu
     };
 
     const handleRemove = (id: string) => {
-        if(statuses.length <= 1) return; // Must have at least one status
+        if (statuses.length <= 1) return; 
+
+        const isUsed = (workflows || []).some(wf => wf.trigger.type === 'status_change' && wf.trigger.value === id);
+        if (isUsed) {
+            if (!window.confirm("Este status é usado em uma automação. Deletá-lo irá remover a automação correspondente. Continuar?")) {
+                return;
+            }
+            const newWorkflows = workflows.filter(wf => !(wf.trigger.type === 'status_change' && wf.trigger.value === id));
+            onWorkflowChange(newWorkflows);
+        }
+
         onChange(statuses.filter(s => s.id !== id));
     };
 
@@ -215,7 +232,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
   if (!isOpen) return null;
 
   const handleSave = () => {
-    onSave(currentSettings);
+    const validStatusIds = new Set(currentSettings.customStatuses.map(s => s.id));
+    const cleanedWorkflows = (currentSettings.workflows || []).filter(workflow => {
+        if (workflow.trigger.type === 'status_change') {
+            return validStatusIds.has(workflow.trigger.value as string);
+        }
+        return true;
+    });
+
+    onSave({ ...currentSettings, workflows: cleanedWorkflows });
     onClose();
   };
   
@@ -239,13 +264,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                 <h4 className="font-bold text-[var(--text-primary)] mb-3">Automações (Workflows)</h4>
                 {/* FIX: Replaced .replaceAll with .replace and a global regex for wider JS environment compatibility. */}
                 <style>{`.input-sm { ${smallInputStyles.replace(/"/g, '')} }`}</style>
-                <WorkflowManager workflows={currentSettings.workflows} onChange={newWorkflows => handleChange('workflows', newWorkflows)} customStatuses={currentSettings.customStatuses}/>
+                <WorkflowManager 
+                    workflows={currentSettings.workflows} 
+                    onChange={newWorkflows => handleChange('workflows', newWorkflows)} 
+                    customStatuses={currentSettings.customStatuses}
+                />
             </div>
 
             {/* Custom Statuses */}
             <div>
                 <h4 className="font-bold text-[var(--text-primary)] mb-3">Status Finais Personalizados</h4>
-                <CustomStatusManager statuses={currentSettings.customStatuses} onChange={newStatuses => handleChange('customStatuses', newStatuses)} />
+                <CustomStatusManager 
+                    statuses={currentSettings.customStatuses} 
+                    onChange={newStatuses => handleChange('customStatuses', newStatuses)} 
+                    workflows={currentSettings.workflows}
+                    onWorkflowChange={newWorkflows => handleChange('workflows', newWorkflows)}
+                />
             </div>
 
             {/* Theme */}

@@ -1,5 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useDebounce } from '../hooks/useLocalStorage';
 
 interface Command {
   id: string;
@@ -34,20 +36,26 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
   const [searchTerm, setSearchTerm] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debouncedSearchTerm = useDebounce(searchTerm, 150);
 
-  const commands: Command[] = ALL_COMMANDS.map(cmd => ({
+  const commands: Command[] = useMemo(() => ALL_COMMANDS.map(cmd => ({
     ...cmd,
     action: () => {
         if (cmd.id.startsWith('tab-')) actions.switchTab(cmd.id.replace('tab-', ''));
         if (cmd.id.startsWith('theme-')) actions.toggleTheme(cmd.id.replace('theme-', ''));
         if (cmd.id === 'settings') actions.openSettings();
     }
-  }));
+  })), [actions]);
 
-  const filteredCommands = searchTerm
-    ? commands.filter(cmd => cmd.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    : commands;
+  const filteredCommands = useMemo(() => debouncedSearchTerm
+    ? commands.filter(cmd => cmd.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
+    : commands, [debouncedSearchTerm, commands]);
   
+  const filteredCommandsRef = useRef(filteredCommands);
+  useEffect(() => {
+    filteredCommandsRef.current = filteredCommands;
+  }, [filteredCommands]);
+
   useEffect(() => {
     if (isOpen) {
         setTimeout(() => inputRef.current?.focus(), 100);
@@ -59,20 +67,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
 
   useEffect(() => {
       setActiveIndex(0);
-  }, [searchTerm]);
+  }, [debouncedSearchTerm]);
 
   useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (!isOpen) return;
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            setActiveIndex(i => (i + 1) % filteredCommands.length);
+            setActiveIndex(i => (i + 1) % (filteredCommandsRef.current.length || 1));
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            setActiveIndex(i => (i - 1 + filteredCommands.length) % filteredCommands.length);
+            setActiveIndex(i => (i - 1 + (filteredCommandsRef.current.length || 1)) % (filteredCommandsRef.current.length || 1));
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            const command = filteredCommands[activeIndex];
+            const command = filteredCommandsRef.current[activeIndex];
             if (command) {
                 command.action();
                 onClose();
@@ -84,7 +92,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, activeIndex, filteredCommands, onClose]);
+  }, [isOpen, activeIndex, onClose]);
 
   if (!isOpen) return null;
 

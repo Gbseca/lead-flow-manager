@@ -117,7 +117,7 @@ export const LeadList: React.FC<LeadListProps> = (props) => {
 
         let persistent = Object.values(persistentLeads).filter(filterLead);
         if (activeTab === 'overdue') {
-// FIX: Explicitly type the parameter `l` to avoid it being inferred as `unknown`.
+            // FIX: Explicitly type the parameter `l` to avoid it being inferred as `unknown`.
             persistent = persistent.filter((l: PersistentLead) => l.overdue);
         }
 
@@ -139,17 +139,46 @@ export const LeadList: React.FC<LeadListProps> = (props) => {
     
     const tabCounts = useMemo(() => {
         const counts: Record<string, number> = {
-            all: leads.filter(l => !l.locked && !l.onHold && !l.favorite && !l.attemptsResults.every(r => r === AttemptResult.Voicemail)).length,
-            voicemail: leads.filter(l => l.attemptsResults.every(r => r === AttemptResult.Voicemail) && !l.favorite).length,
-            onHold: leads.filter(l => l.onHold && !l.favorite).length,
+            all: 0,
+            voicemail: 0,
+            onHold: 0,
+            international: 0,
             persistent: Object.keys(persistentLeads).length,
-// FIX: Explicitly type the parameter `l` to avoid it being inferred as `unknown`.
-            overdue: Object.values(persistentLeads).filter((l: PersistentLead) => l.overdue).length,
-            international: leads.filter(l => l.international).length,
+            overdue: 0,
         };
+        
         settings.customStatuses.forEach(status => {
-            counts[status.id] = leads.filter(l => l.result === status.id).length;
+            counts[status.id] = 0;
         });
+    
+        for (const l of leads) {
+            if (l.result && counts[l.result] !== undefined) {
+                counts[l.result]++;
+            }
+            
+            if (!l.locked && !l.onHold && !l.favorite && !l.attemptsResults.every(r => r === AttemptResult.Voicemail)) {
+                counts.all++;
+            }
+            
+            if (l.attemptsResults.every(r => r === AttemptResult.Voicemail) && !l.favorite) {
+                counts.voicemail++;
+            }
+            
+            if (l.onHold && !l.favorite) {
+                counts.onHold++;
+            }
+            
+            if (l.international) {
+                counts.international++;
+            }
+        }
+        
+        for (const l of Object.values(persistentLeads)) {
+            if (l.overdue) {
+                counts.overdue++;
+            }
+        }
+        
         return counts;
     }, [leads, persistentLeads, settings.customStatuses]);
 
