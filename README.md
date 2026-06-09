@@ -1,20 +1,45 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Lead Flow Manager
 
-# Run and deploy your AI Studio app
+Dashboard para acompanhamento de leads em fluxo comercial. A aplicacao combina pipeline visual, acoes em massa, paleta de comandos e um painel de apoio com IA para analisar conversas ou chamadas.
 
-This contains everything you need to run your app locally.
+## Funcionalidades
 
-View your app in AI Studio: https://ai.studio/apps/drive/197TQ7ttPpkiyTBtNWiAesc2VF2MsfYoz
+- Pipeline de leads com estados operacionais.
+- Acoes em massa para organizar contatos.
+- Paleta de comandos para navegação rapida dentro da interface.
+- Painel de coaching com Gemini para gerar feedback a partir de transcricoes.
+- Componentes de dashboard, importacao e produtividade comercial.
 
-## Run Locally
+## Stack
 
-**Prerequisites:**  Node.js
+- React
+- TypeScript
+- Vite
+- Google Gemini API
 
+## Como Rodar
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+npm run dev
+```
+
+Para usar os recursos de IA, configure a chave no ambiente:
+
+```bash
+GEMINI_API_KEY=
+```
+
+## Estrutura
+
+```text
+components/   Interface do dashboard e controles
+hooks/        Hooks reutilizaveis
+services/     Integracao com IA
+types.ts      Tipos principais de leads e pipeline
+```
+
+## Por Que Este Projeto E Relevante
+
+Ele demonstra construcao de uma ferramenta operacional: estado de interface, organizacao de dados, componentes reutilizaveis e integracao com IA aplicada a um caso real de vendas.
+
